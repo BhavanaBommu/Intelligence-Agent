@@ -1,0 +1,100 @@
+### 1. Ingress & Safety Pre-Processing
+
+* **User / Client:** The person or system submitting an inquiry (e.g., an auditor, member, or client asking why a claim had a specific copay or was adjudicated to $0).
+
+
+* **Ingress API Gateway:** The entry point that captures incoming user requests and prompts before routing them into the internal processing pipeline.
+
+
+* **PII/PHI Tokenization (Microsoft Presidio):** Scans the input text for sensitive Personally Identifiable Information (PII) or Protected Health Information (PHI) and replaces it with secure tokens so raw patient data is never exposed directly to downstream models.
+
+
+* **Safety Precheck (Ingress Level):** A guardrail layer that evaluates input queries to filter out toxicity, harassment, explicit/harmful content, or queries outside system scope before allowing further execution.
+
+
+
+---
+
+### 2. Intent Understanding & Clarification
+
+* **Intent Agent / Classifier:** Analyzes the prompt to classify the user's intent (e.g., claim audit, adjudication reasoning, benefit coverage query).
+
+
+* **Embedding Classifier:** Converts input text into vector representations to categorize nuanced queries across supported domain paths.
+
+
+* **Confidence & Entity Check:** A decision node that evaluates whether required entities (such as claim IDs, member identifiers, procedure codes) were detected and whether classification confidence meets predefined thresholds.
+
+
+* **Clarification Engine:** If confidence is below the threshold or critical parameters are missing, this engine prompts the user for clarification and writes conversation updates back to session memory.
+
+
+
+---
+
+### 3. Context & Memory Layer
+
+* **Context Builder:** Orchestrates and aggregates all background information needed to solve the query into a unified context payload.
+
+
+* **Memory Retriever:** Interacts with memory stores to fetch ongoing conversation history and user session state.
+
+
+* **Short-Term Memory:** Retains current session turns, newly clarified entities, and intermediate conversational context.
+
+
+* **Long-Term Memory:** Stores persistent cross-session history or relevant account profile information.
+
+
+* **RAG / Rules Resolver:** Retrieves domain-specific grounding data, such as benefit plans, client intent documents, and adjudication policies to ensure the system reasons based on accurate contract terms.
+
+
+* **Recommendation Engine / Member Agent:** Handles supplementary member-specific workflows or next-best recommendations when relevant to the session.
+
+
+
+---
+
+### 4. Tool Execution & API Routing
+
+* **Tool Calling Agent:** Receives the assembled context and payload, determining which specific external tools or APIs must be called for the target domain.
+
+
+* **Corpus APIs:** A collection of core domain microservices and backend systems (e.g., Claim History APIs, pricing engines, copay calculators) that provide transactional ground truth.
+
+
+* **Model Router:** Coordinates and formats the structured data returned by backend APIs, packaging it appropriately before sending it to the reasoning layer.
+
+
+
+---
+
+### 5. Inference, Reasoning & Post-Processing
+
+* **Safety Precheck (Masking):** Verifies that payloads and retrieved data coming from tools and APIs are masked and sanitized before being injected into LLM prompts.
+
+
+* **AIRA Core LLM (Prompt Gallery):** The central reasoning model that combines the prompt gallery instructions, domain rules, and API facts to deduce *why* an adjudication outcome occurred (e.g., explaining why a diabetic drug carried a $25 copay instead of $0).
+
+
+* **Response Agent:** Formats the raw LLM output into a clear, structured explanation tailored to the requested format (such as an audit report or conversational answer).
+
+
+* **Safety Postcheck (Detokenization):** Replaces temporary Presidio tokens with real identifiers where permissible, validates the response against hallucination checks, and delivers the finalized answer to the user.
+
+
+
+---
+
+### 6. Observability & Evaluation
+
+* **Logger Service:** Tracks request lifecycles, API execution latencies, errors, and payload traces.
+
+
+* **Telemetry / Dashboards:** Aggregates metrics to monitor system health, invocation costs, and operational trends.
+
+
+* **Evaluation Agent (LLM-as-a-Judge):** Runs automated post-generation checks evaluating the reasoning quality, factual grounding, and compliance of the generated explanations.
+
+
+https://viewer.diagrams.net/?tags=%7B%7D&lightbox=1&highlight=0000ff&edit=_blank&layers=1&nav=1&dark=auto#R%3Cmxfile%3E%3Cdiagram%20name%3D%22Page-1%22%20id%3D%22tixvzZ3JQwLA_yk-yEVk%22%3EzVpbb6M4FP41lWYfVuIScnlMSGgrtZqondE%2BVi44ibcGI9tMkvn1a%2B42caeUAFtVaunBwHc%2BH75zfMyN7YanWwriwyMJIL6xjOB0Y69vLMsyLEP8SS3n3GKadmHZUxQUttrwjH7DwlgOS1AAmTKQE4I5ilWjT6II%2BlyxAUrJUR22I1h9agz28MLw7AN8af0HBfxQWKeGUZ%2B4g2h%2FKB69KE%2BEoBxcGNgBBOQomezNje1SQnh%2BFJ5ciFP2Sl7y67x3zlbAKIx4mwsSBunlNcVtGD%2BXHguccXoorhYki6PV8YA4fI6Bn5qPYqKF7cBDLP4zxeEOYewSTGh2ve15G2MlvFsxTskblM%2Bs5q6gR1xBIv5cPDG9Q47hF8BJgeFnhtVInbEMF6MUbj4GUg5PEvTC11tIQsjpWQw5SLPhFNwfpakrJ6i4y6T4twhQu5wuUATOvrpzza04KOjVU42iPYWMtWGbkiQKYFAQ8TmmN6bneBsd04Y1n%2BuZvS%2BhGcvtvfh9Czg8gnNv7Noqu%2BZ8AHq5cDYamlwRxu7K1oaxtzSyMA4AO1R3v2B6ey%2F49bZ3Kcs%2FUsToN%2BCICOBTcRMzvcG3R%2BRTwshORLexFfOCAkT%2BGmou7CFCncUaIdLMxIGErwnrMAvewp3oxcQ1rLWO%2BGewg%2FycM%2BofoP%2FWidD5x9LhGA1CDacP7eCV2n016ciRGct9%2FjeT5yqYXQwYQztUZpkeAthU%2BZ7aAwQwDF8Fh1%2BQ7k0KLBCpJEuBvXPbEIfZbABuRVG2%2B2rq4ApMoqSMxBNSF6cgjLNhVRxvIo4y%2BXB71Y5GLC%2BasdyHdvgYULQ7D58a3fVaW%2BFtHHthO1raM2jIL1KgsYn2KIJDRfPCUtmdzHqI5ldyevH5qQ277IhCDKIOxbOT%2FuionZrpzzsRLejjajgbjzAkGXUP4NxRNiz7kmm7Ecem2UiCVcV3VSDz08srDjTrFWUS%2Fkd1rklfJQgHHRmeaELZUgluRLLTA7shDF8o1NQYg5A73yy9qY5cEezmSisWVew%2BCdcQ%2FDUcu%2Basf3oZfxEMt2e3XHD7Z4wEzdT%2BmOPXfEIeXisD8N%2F22TR9TzhOlTW3s7yhkiW2Hibm%2BUAo%2F%2FsHpKGkMF1mxvkwQZozR9UVs4epoWAvIl%2BzMB8k8g3P8kytrBjzxWylI%2FhpeVsW1kZVb6%2BJz7KXgRHc9V1okTQbSlOdvm6pTvAL2H%2FRFc0PgS4t9ADGeZ293PfZaWpqzcRRGbb6qEp8QuNk%2BFZTh1h2C2Rpp4nJXQ9RC6JUQO4Q47nO5wG%2FJRj5CLL%2BOiCT5gw0WyDTPkSFJLxda3Xs%2BC778U8SwhHietJHFk0VGbVbPnavtj1vvZl9bv14H%2B0gvVw%2BCnUGjES5jFxRcmtqlg9L7l5WNyy29GmxmoSv084zvj0C9ia47qYU049zoTltUNwDwxi%2FUxRqGb5qfe45i7WWZWfmmbM2OzDL%2B6dlmhoJTQP94eFRFvBl8G8S1Gv5LSVhzHuU7T8vgSY9dEpEERi%2FV5cMMSVd1FvUezGJGLyqLvn8CrOXui8mYhUkNd%2BHFZUrd2pqhRGoC9B1sJf7MmkhDnm%2BkQM7Co9m2dMsURq51LR6iHZoTvKbwOBit%2Fu9eSEJ9cv8WqYGDugeckXNLh2mEAth%2BKU%2B5zr0zjXoK9mV0avv%2FyhOTK9xoqlXsi%2FquzaKLy1cMS%2BdqL9AkOFLm%2BVjYLe6YVe29GX41Wb0GODtbuClDXMZerF3OwbwNvqjAV7tLqsBw0d8b9tojzZeuPZlrbYbx8DeRnI02KUtURl6uZs3BvJZN%2BT1hqMCXN4Wk%2FL%2BAzlmJe54bs07uiU7IHtWK6r84UlWjgvbz%2BLsFZ5lly4pTb8QqgbERES3LNjb1FDXMIu52rp15o0v05rjjT8NFwc5gJriypN2rC96DSZla0qmHTA23qtd9gQ%2B7ZQCX01kcqt2FB861hHNprIqUmU7dBQPOlYTctNWKUurRt0o6DuWE3LDU60nrNGgd0wQzXXph2LqoQikT%2F6e8Di59s3opKamtVDldDb9lJw2hn9WTsW%2F9TfK%2BfD6U2978x8%3D%3C%2Fdiagram%3E%3C%2Fmxfile%3E
